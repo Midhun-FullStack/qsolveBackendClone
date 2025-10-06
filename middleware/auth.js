@@ -1,5 +1,6 @@
 const jwt = require("jsonwebtoken")
 const asynchandler = require("express-async-handler")
+const User = require("../model/userSchema")
 require("dotenv").config()
 
 
@@ -14,4 +15,13 @@ const authenticateUser = asynchandler(async(req, res,next)=>{
         req.user = decoded
         next()
 })
-module.exports = {authenticateUser}
+
+const requireAdmin = asynchandler(async (req, res, next) => {
+    const user = await User.findById(req.user._id);
+    if (!user || user.role !== 'admin') {
+        return res.status(403).json({ message: "Access denied. Admin role required." });
+    }
+    next();
+});
+
+module.exports = {authenticateUser, requireAdmin}

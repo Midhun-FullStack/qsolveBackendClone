@@ -1,3 +1,5 @@
+// Get all users (for admin panel)
+
 // The bad days? They’re tuition. You’re paying for wisdom.
 
 // The good days? They’re proof that progress is real.
@@ -12,7 +14,10 @@ const bcrypt = require("bcrypt")
 const jwt = require("jsonwebtoken")
 const asynchandler = require("express-async-handler")
 
-
+exports.getAllUsers = asynchandler(async (req, res) => {
+    const users = await User.find({}, '-password -__v');
+    res.status(200).json(users);
+});
 
 exports.registerUser = asynchandler(async (req,res)=>{
     const {username,email,password,firstname,lastname,role}=req.body
@@ -111,3 +116,13 @@ exports.changePassword = asynchandler(
         res.status(200).json({message: "password changed successfully"})
     }
 )
+
+exports.deleteUser = asynchandler(async (req, res) => {
+    const { id } = req.params;
+    const user = await User.findById(id);
+    if (!user) {
+        return res.status(404).json({ message: "User not found" });
+    }
+    await User.findByIdAndDelete(id);
+    res.status(200).json({ message: "User deleted successfully" });
+});
