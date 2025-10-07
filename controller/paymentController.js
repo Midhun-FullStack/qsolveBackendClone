@@ -67,3 +67,8 @@ exports.confirmPayment=asynchandler(async(req,res)=>{
   },{paymentDone:true})
   res.status(200).json({message:"payment confirmed"})
 })
+
+exports.getAllPurchases = asynchandler(async (req, res) => {
+  const purchases = await purchase.find({}).populate('userId', 'username email').populate('bundleId', 'title price');
+  res.status(200).json(purchases);
+});

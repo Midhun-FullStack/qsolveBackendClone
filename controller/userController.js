@@ -21,19 +21,23 @@ exports.getAllUsers = asynchandler(async (req, res) => {
 
 exports.registerUser = asynchandler(async (req,res)=>{
     const {username,email,password,firstname,lastname,role}=req.body
-   
-    // isExist= await User.findOne({email})
-    // if(isExist){
-    //     res.status(400).json("user already exists")
-    // } 
-    hashed =await bcrypt.hash(password,10)
+
+    const existingUser = await User.findOne({email})
+    if(existingUser){
+        res.status(400).json("user already exists")
+        return
+    }
+
+    // Allow admin role for registration (for initial setup)
+
+    const hashed = await bcrypt.hash(password,10)
     const userCreated = await User.create({
         username,
         email,
         password:hashed,
         firstname,
         lastname,
-        role
+        role: role || 'student'
     })
     if(userCreated){
         res.status(201).json({
@@ -48,8 +52,6 @@ exports.registerUser = asynchandler(async (req,res)=>{
     else{
         res.status(400).json("user not created")
     }
-
-
 })
 
 exports.loginUser = asynchandler(async (req,res)=>{

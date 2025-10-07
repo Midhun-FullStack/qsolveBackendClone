@@ -7,7 +7,7 @@ const { authenticateUser, requireAdmin } = require("../../middleware/auth")
 
 // List all users (for admin panel)
 router.get("/", authenticateUser, requireAdmin, getAllUsers)
-router.post("/register", authenticateUser, requireAdmin, registerUser)
+router.post("/register", registerUser)
 router.post("/login", loginUser)
 router.get("/profile", authenticateUser, getUserProfile)
 router.put("/change-password", authenticateUser, changePassword)

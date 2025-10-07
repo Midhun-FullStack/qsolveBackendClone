@@ -1,6 +1,7 @@
 const questionBank = require("../model/questionBankSchema")
 const Bundle = require("../model/BundleShcema")
 const purchase = require("../model/purchaseSchema")
+const User = require("../model/userSchema")
 const asynchandler = require("express-async-handler")
 
 exports.createQuestionBank=asynchandler(async (req,res)=>{
@@ -16,9 +17,14 @@ exports.createQuestionBank=asynchandler(async (req,res)=>{
 })
 
 exports.getAllQuestionBank = asynchandler(async (req, res) => {
+    const user = await User.findById(req.user._id);
+    if (user.role === 'admin') {
+        const response = await questionBank.find({});
+        return res.status(200).json(response);
+    }
     const userID = req.user._id;
-    const purchasedBundles = await purchase.find({ userID, paymentDone: true }).select('BundleId');
-    const bundleIds = purchasedBundles.map(p => p.BundleId);
+    const purchasedBundles = await purchase.find({ userID, paymentDone: true }).select('bundleId');
+    const bundleIds = purchasedBundles.map(p => p.bundleId);
     const bundles = await Bundle.find({ _id: { $in: bundleIds } }).select('products');
     const questionBankIds = bundles.flatMap(b => b.products);
     const response = await questionBank.find({ _id: { $in: questionBankIds } });
@@ -28,8 +34,8 @@ exports.getAllQuestionBank = asynchandler(async (req, res) => {
 exports.getQuestionBankBySubjects = asynchandler(async (req, res) => {
     const { subjectID } = req.body;
     const userID = req.user._id;
-    const purchasedBundles = await purchase.find({ userID, paymentDone: true }).select('BundleId');
-    const bundleIds = purchasedBundles.map(p => p.BundleId);
+    const purchasedBundles = await purchase.find({ userID, paymentDone: true }).select('bundleId');
+    const bundleIds = purchasedBundles.map(p => p.bundleId);
     const bundles = await Bundle.find({ _id: { $in: bundleIds }, products: { $exists: true } });
     const questionBankIds = bundles.flatMap(b => b.products);
     const response = await questionBank.findOne({ subjectID, _id: { $in: questionBankIds } });
