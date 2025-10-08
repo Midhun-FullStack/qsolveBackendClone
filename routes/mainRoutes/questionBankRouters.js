@@ -10,6 +10,9 @@ router.get("/", (req, res) => {
 })
 router.post("/create",authenticateUser,parser.single("file"),questionBank.createQuestionBank)
 router.post("/",authenticateUser,questionBank.getAllQuestionBank)
+router.get("/:id",authenticateUser,questionBank.getQuestionBankById)
+router.put("/:id",authenticateUser,parser.single("file"),questionBank.updateQuestionBank)
+router.delete("/:id",authenticateUser,questionBank.deleteQuestionBank)
 router.post("/byDepartment",questionBank.getPdfByDeparment)
 router.post("/bySubject",authenticateUser,questionBank.getQuestionBankBySubjects)
 

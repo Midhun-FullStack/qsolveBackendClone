@@ -8,11 +8,27 @@ exports.createQuestionBank=asynchandler(async (req,res)=>{
 
 
     const {title,description,semesterID,subjectID}=req.body
-    const postCreated = await questionBank.create({title, description,semesterID,subjectID,fileUrl:req.file.path})
-    if(!postCreated)res.status(400).send("error while creating the documents")
-    console.log(req.file,);
+            // Ensure a file was uploaded by the parser middleware
+            if (!req.file) {
+                return res.status(400).json({ message: 'File upload failed or missing. Please upload a PDF.' });
+            }
 
-    res.status(200).json(postCreated)
+            // Construct a public URL path for the uploaded file (served from /uploads)
+            const filename = req.file.filename || req.file.path.split(/[\\/]/).pop();
+            const fileUrl = `/uploads/${filename}`;
+
+            const postCreated = await questionBank.create({
+                title,
+                description,
+                semesterID,
+                subjectID,
+                fileUrl,
+            });
+
+        if (!postCreated) return res.status(400).send('error while creating the documents');
+
+        console.log('Uploaded file:', req.file);
+        res.status(200).json(postCreated);
 
 })
 
@@ -41,6 +57,54 @@ exports.getQuestionBankBySubjects = asynchandler(async (req, res) => {
     const response = await questionBank.findOne({ subjectID, _id: { $in: questionBankIds } });
     if (!response) return res.status(403).json({ message: 'Access denied: not purchased' });
     res.json(response);
+});
+
+exports.getQuestionBankById = asynchandler(async (req, res) => {
+    const { id } = req.params;
+    const user = await User.findById(req.user._id);
+
+    if (user.role === 'admin') {
+        const response = await questionBank.findById(id);
+        if (!response) return res.status(404).json({ message: 'Question bank not found' });
+        return res.status(200).json(response);
+    }
+
+    const userID = req.user._id;
+    const purchasedBundles = await purchase.find({ userID, paymentDone: true }).select('bundleId');
+    const bundleIds = purchasedBundles.map(p => p.bundleId);
+    const bundles = await Bundle.find({ _id: { $in: bundleIds } }).select('products');
+    const questionBankIds = bundles.flatMap(b => b.products);
+
+    if (!questionBankIds.includes(id)) {
+        return res.status(403).json({ message: 'Access denied: not purchased' });
+    }
+
+    const response = await questionBank.findById(id);
+    if (!response) return res.status(404).json({ message: 'Question bank not found' });
+    res.json(response);
+});
+
+exports.updateQuestionBank = asynchandler(async (req, res) => {
+    const { id } = req.params;
+    const { title, description, semesterID, subjectID } = req.body;
+
+    const updateData = { title, description, semesterID, subjectID };
+    if (req.file) {
+        updateData.fileUrl = req.file.url || req.file.path;
+    }
+
+    const updatedQuestionBank = await questionBank.findByIdAndUpdate(id, updateData, { new: true });
+    if (!updatedQuestionBank) return res.status(404).json({ message: 'Question bank not found' });
+
+    res.status(200).json(updatedQuestionBank);
+});
+
+exports.deleteQuestionBank = asynchandler(async (req, res) => {
+    const { id } = req.params;
+    const deletedQuestionBank = await questionBank.findByIdAndDelete(id);
+    if (!deletedQuestionBank) return res.status(404).json({ message: 'Question bank not found' });
+
+    res.status(200).json({ message: 'Question bank deleted successfully' });
 });
 
 exports.getPdfByDeparment = asynchandler(async (req, res) => {
