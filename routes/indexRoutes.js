@@ -10,6 +10,9 @@ const questionBankRoutes = require('./mainRoutes/questionBankRouters')
 const semesterRoutes = require('./mainRoutes/semesterRoutes')
 const subjectRoutes = require('./mainRoutes/subjectRoutes')
 const userRoutes = require('./mainRoutes/userRoutes')
+const adminRoutes = require('./mainRoutes/adminRoutes')
+const accessRoutes = require('./mainRoutes/accessRoutes')
+const accessRequestRoutes = require('./mainRoutes/accessRequestRoutes')
 
 
 router.use('/bundles', bundleRoutes)
@@ -20,5 +23,8 @@ router.use('/question-banks', questionBankRoutes)
 router.use('/semesters', semesterRoutes)
 router.use('/subjects', subjectRoutes)
 router.use('/users', userRoutes)
+router.use('/admin', adminRoutes)
+router.use('/access', accessRoutes)
+router.use('/access-requests', accessRequestRoutes)
 
 module.exports = router

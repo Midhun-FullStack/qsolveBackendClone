@@ -1,35 +1,59 @@
 const questionBank = require("../model/questionBankSchema")
 const Bundle = require("../model/BundleShcema")
-const purchase = require("../model/purchaseSchema")
+const Access = require("../model/accessSchema")
 const User = require("../model/userSchema")
 const asynchandler = require("express-async-handler")
 
-exports.createQuestionBank=asynchandler(async (req,res)=>{
-
-
-    const {title,description,semesterID,subjectID}=req.body
-            // Ensure a file was uploaded by the parser middleware
-            if (!req.file) {
-                return res.status(400).json({ message: 'File upload failed or missing. Please upload a PDF.' });
-            }
-
-            // Construct a public URL path for the uploaded file (served from /uploads)
-            const filename = req.file.filename || req.file.path.split(/[\\/]/).pop();
-            const fileUrl = `/uploads/${filename}`;
-
-            const postCreated = await questionBank.create({
-                title,
-                description,
-                semesterID,
-                subjectID,
-                fileUrl,
+exports.createQuestionBank = asynchandler(async (req, res) => {
+    try {
+        const { title, description, semesterID, subjectID } = req.body;
+        
+        // Validate required fields
+        if (!title || !description || !semesterID || !subjectID) {
+            return res.status(400).json({ 
+                message: 'Missing required fields: title, description, semesterID, subjectID' 
             });
+        }
 
-        if (!postCreated) return res.status(400).send('error while creating the documents');
+        // Ensure a file was uploaded by the parser middleware
+        if (!req.file) {
+            return res.status(400).json({ 
+                message: 'File upload failed or missing. Please upload a PDF.' 
+            });
+        }
 
-        console.log('Uploaded file:', req.file);
-        res.status(200).json(postCreated);
+        // Construct a public URL path for the uploaded file (served from /uploads)
+        const filename = req.file.filename || req.file.path.split(/[\\/]/).pop();
+        const fileUrl = `/uploads/${filename}`;
 
+        const postCreated = await questionBank.create({
+            title,
+            description,
+            semesterID,
+            subjectID,
+            fileUrl,
+        });
+
+        if (!postCreated) {
+            return res.status(400).json({ message: 'Error while creating the question bank' });
+        }
+
+        console.log('Uploaded file:', {
+            originalName: req.file.originalname,
+            filename: req.file.filename,
+            size: req.file.size,
+            mimetype: req.file.mimetype,
+            fileUrl: fileUrl
+        });
+        
+        res.status(201).json(postCreated);
+    } catch (error) {
+        console.error('Create question bank error:', error);
+        res.status(500).json({ 
+            message: 'Internal server error during question bank creation',
+            error: process.env.NODE_ENV === 'development' ? error.message : undefined
+        });
+    }
 })
 
 exports.getAllQuestionBank = asynchandler(async (req, res) => {
@@ -38,9 +62,19 @@ exports.getAllQuestionBank = asynchandler(async (req, res) => {
         const response = await questionBank.find({});
         return res.status(200).json(response);
     }
+    
     const userID = req.user._id;
-    const purchasedBundles = await purchase.find({ userID, paymentDone: true }).select('bundleId');
-    const bundleIds = purchasedBundles.map(p => p.bundleId);
+    // Get user's accessible bundles through admin-granted access
+    const accessibleBundles = await Access.find({ 
+        userId: userID, 
+        isActive: true,
+        $or: [
+            { expiresAt: null },
+            { expiresAt: { $gt: new Date() } }
+        ]
+    }).select('bundleId');
+    
+    const bundleIds = accessibleBundles.map(access => access.bundleId);
     const bundles = await Bundle.find({ _id: { $in: bundleIds } }).select('products');
     const questionBankIds = bundles.flatMap(b => b.products);
     const response = await questionBank.find({ _id: { $in: questionBankIds } });
@@ -50,12 +84,22 @@ exports.getAllQuestionBank = asynchandler(async (req, res) => {
 exports.getQuestionBankBySubjects = asynchandler(async (req, res) => {
     const { subjectID } = req.body;
     const userID = req.user._id;
-    const purchasedBundles = await purchase.find({ userID, paymentDone: true }).select('bundleId');
-    const bundleIds = purchasedBundles.map(p => p.bundleId);
+    
+    // Get user's accessible bundles through admin-granted access
+    const accessibleBundles = await Access.find({ 
+        userId: userID, 
+        isActive: true,
+        $or: [
+            { expiresAt: null },
+            { expiresAt: { $gt: new Date() } }
+        ]
+    }).select('bundleId');
+    
+    const bundleIds = accessibleBundles.map(access => access.bundleId);
     const bundles = await Bundle.find({ _id: { $in: bundleIds }, products: { $exists: true } });
     const questionBankIds = bundles.flatMap(b => b.products);
     const response = await questionBank.findOne({ subjectID, _id: { $in: questionBankIds } });
-    if (!response) return res.status(403).json({ message: 'Access denied: not purchased' });
+    if (!response) return res.status(403).json({ message: 'Access denied: no access granted' });
     res.json(response);
 });
 
@@ -70,13 +114,22 @@ exports.getQuestionBankById = asynchandler(async (req, res) => {
     }
 
     const userID = req.user._id;
-    const purchasedBundles = await purchase.find({ userID, paymentDone: true }).select('bundleId');
-    const bundleIds = purchasedBundles.map(p => p.bundleId);
+    // Get user's accessible bundles through admin-granted access
+    const accessibleBundles = await Access.find({ 
+        userId: userID, 
+        isActive: true,
+        $or: [
+            { expiresAt: null },
+            { expiresAt: { $gt: new Date() } }
+        ]
+    }).select('bundleId');
+    
+    const bundleIds = accessibleBundles.map(access => access.bundleId);
     const bundles = await Bundle.find({ _id: { $in: bundleIds } }).select('products');
     const questionBankIds = bundles.flatMap(b => b.products);
 
-    if (!questionBankIds.includes(id)) {
-        return res.status(403).json({ message: 'Access denied: not purchased' });
+    if (!questionBankIds.some(qbId => qbId.toString() === id)) {
+        return res.status(403).json({ message: 'Access denied: no access granted' });
     }
 
     const response = await questionBank.findById(id);
@@ -90,7 +143,10 @@ exports.updateQuestionBank = asynchandler(async (req, res) => {
 
     const updateData = { title, description, semesterID, subjectID };
     if (req.file) {
-        updateData.fileUrl = req.file.url || req.file.path;
+        // Construct proper file URL for local storage (same as create method)
+        const filename = req.file.filename || req.file.path.split(/[\\/]/).pop();
+        updateData.fileUrl = `/uploads/${filename}`;
+        console.log('Updated file:', req.file);
     }
 
     const updatedQuestionBank = await questionBank.findByIdAndUpdate(id, updateData, { new: true });

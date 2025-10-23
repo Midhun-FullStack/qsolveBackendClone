@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF Upload Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .upload-form {
+            border: 2px dashed #ccc;
+            padding: 30px;
+            text-align: center;
+            margin: 20px 0;
+            border-radius: 10px;
+        }
+        .upload-form.dragover {
+            border-color: #007bff;
+            background-color: #f8f9fa;
+        }
+        input[type="file"] {
+            margin: 20px 0;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            width: 100%;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            padding: 12px 30px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 5px;
+            white-space: pre-wrap;
+        }
+        .success {
+            background-color: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+        .error {
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+        .file-info {
+            background-color: #e2e3e5;
+            border: 1px solid #d6d8db;
+            color: #383d41;
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>PDF Upload Test</h1>
+        <p>This page tests PDF file uploads to ensure they are not corrupted during the upload process.</p>
+        
+        <form id="uploadForm" class="upload-form">
+            <h3>Select a PDF file to upload</h3>
+            <input type="file" id="fileInput" accept=".pdf,application/pdf" required>
+            <br>
+            <button type="submit" id="uploadBtn">Upload PDF</button>
+        </form>
+
+        <div id="result"></div>
+    </div>
+
+    <script>
+        const form = document.getElementById('uploadForm');
+        const fileInput = document.getElementById('fileInput');
+        const uploadBtn = document.getElementById('uploadBtn');
+        const result = document.getElementById('result');
+
+        // Drag and drop functionality
+        const uploadForm = document.querySelector('.upload-form');
+        
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            uploadForm.addEventListener(eventName, preventDefaults, false);
+        });
+
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        ['dragenter', 'dragover'].forEach(eventName => {
+            uploadForm.addEventListener(eventName, highlight, false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            uploadForm.addEventListener(eventName, unhighlight, false);
+        });
+
+        function highlight(e) {
+            uploadForm.classList.add('dragover');
+        }
+
+        function unhighlight(e) {
+            uploadForm.classList.remove('dragover');
+        }
+
+        uploadForm.addEventListener('drop', handleDrop, false);
+
+        function handleDrop(e) {
+            const dt = e.dataTransfer;
+            const files = dt.files;
+            
+            if (files.length > 0) {
+                fileInput.files = files;
+                showFileInfo(files[0]);
+            }
+        }
+
+        fileInput.addEventListener('change', function(e) {
+            if (e.target.files.length > 0) {
+                showFileInfo(e.target.files[0]);
+            }
+        });
+
+        function showFileInfo(file) {
+            const fileInfo = `
+Selected File Information:
+- Name: ${file.name}
+- Size: ${(file.size / 1024 / 1024).toFixed(2)} MB
+- Type: ${file.type}
+- Last Modified: ${new Date(file.lastModified).toLocaleString()}
+            `;
+            
+            result.innerHTML = `<div class="file-info">${fileInfo}</div>`;
+        }
+
+        form.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const file = fileInput.files[0];
+            if (!file) {
+                showResult('Please select a file', 'error');
+                return;
+            }
+
+            if (file.type !== 'application/pdf') {
+                showResult('Please select a PDF file', 'error');
+                return;
+            }
+
+            uploadBtn.disabled = true;
+            uploadBtn.textContent = 'Uploading...';
+            
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                // Test with the test server first
+                const response = await fetch('http://localhost:3001/test-upload', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+                
+                if (response.ok) {
+                    const resultText = `
+Upload Successful! ✅
+
+File Details:
+- Original Name: ${data.file.originalName}
+- Saved As: ${data.file.filename}
+- MIME Type: ${data.file.mimetype}
+- Size: ${(data.file.size / 1024 / 1024).toFixed(2)} MB
+- Actual Size on Disk: ${(data.file.actualSize / 1024 / 1024).toFixed(2)} MB
+- File Exists: ${data.file.exists ? 'Yes' : 'No'}
+- Is Valid PDF: ${data.file.isPDF ? 'Yes ✅' : 'No ❌'}
+- File Header: ${data.file.header}
+
+File URL: http://localhost:3001/uploads/${data.file.filename}
+                    `;
+                    showResult(resultText, 'success');
+                } else {
+                    showResult(`Upload Failed: ${data.message}`, 'error');
+                }
+            } catch (error) {
+                showResult(`Network Error: ${error.message}`, 'error');
+            } finally {
+                uploadBtn.disabled = false;
+                uploadBtn.textContent = 'Upload PDF';
+            }
+        });
+
+        function showResult(message, type) {
+            result.innerHTML = `<div class="result ${type}">${message}</div>`;
+        }
+    </script>
+</body>
+</html>
